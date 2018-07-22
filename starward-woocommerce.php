@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Starward WooCommerce
  * Plugin URI:        https://github.com/birdbrain/starward-woocommerce-plugin
- * Description:
+ * Description:       This plugin creates custom API endpoints and extends existing WooCommerce REST API responses
  * Version:           1.0.0
  * Author:            BirdBrain
  * Author URI:        hello@birdbrain.com.au
@@ -10,8 +10,11 @@
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       starward-woocommerce
  */
+
+
 /* ------------------------------------------------------------------------
-  Filter WooCommerce Products Filter Request
+  Manipulating the WooCommerce Products Query to allow filtering
+  by attribute slug and term ids ( e.g. ?pa_color=21,22&pa_size=30 )
 ------------------------------------------------------------------------ */
 function filter_product_category_multiple_attributes( $query ) {
   if ($query->is_main_query()) {
@@ -42,6 +45,7 @@ function filter_product_category_multiple_attributes( $query ) {
   return $query;
 }
 add_action( 'pre_get_posts', 'filter_product_category_multiple_attributes' );
+
 
 /* ------------------------------------------------------------------------
   Manipulating the WordPress Product response
@@ -85,14 +89,18 @@ function filter_woocommerce_rest_prepare_product_object( $response, $object, $re
     }
 
     /* ########################################################
-      - Adding attribute slug to the attribute response
+      - Adding attribute taxonomy to the attribute response
+      - Adding attribute identifier to the attribute response
       - Adding more detailed option data to the attribute options response
     ######################################################## */
     foreach($attribute_taxonomies as $attribute_taxonomy) {
       if ($attribute['id'] == $attribute_taxonomy->attribute_id) {
 
         /* Add slug to current attribute response */
-        $response->data['attributes'][$attrkey]['slug'] = ('pa_' . $attribute_taxonomy->attribute_name);
+        $response->data['attributes'][$attrkey]['taxonomy'] = ('pa_' . $attribute_taxonomy->attribute_name);
+
+        /* Add attribute identifier to current attribute response */
+        $response->data['attributes'][$attrkey]['slug'] = $attribute_taxonomy->attribute_name;
 
         /* Replace default options data with detailed options data for current attribute */
         $options = $response->data['attributes'][$attrkey]['options'];
@@ -118,12 +126,49 @@ function filter_woocommerce_rest_prepare_product_object( $response, $object, $re
     }
   }
 
+  /* ########################################################
+    - Replacing Variation IDs with Variation details
+  ######################################################## */
+
+  // Get the current product object
+  $variation_ids = $response->data['variations'];
+
+  $detailed_variations = array_map(function($variation_id) {
+    $variation = wc_get_product($variation_id);
+    return (object) [
+      'variation_id' => $variation->get_id(),
+      'image_url' => wp_get_attachment_url($variation->get_image_id()),
+      'variation_regular_price' => $variation->get_regular_price(),
+      'variation_sale_price' => $variation->get_sale_price(),
+      'attributes' => $variation->get_attributes(),
+      'is_on_sale' => $variation->is_on_sale()
+    ];
+  }, $variation_ids);
+
+  $response->data['variations'] = $detailed_variations;
+
+
+  /* ########################################################
+    - Get ALL Variation attributes for a product
+  ######################################################## */
+  if ($response->data['type'] == 'variable') {
+    $variation_attributes = wc_get_product($response->data['id'])->get_variation_attributes();
+    $variation_attributes = array_map(function($attribute) {
+      return (array_values($attribute));
+    }, $variation_attributes);
+    $response->data['variation_attributes'] = $variation_attributes;
+  }
+
+
+
+  /* Return new response */
   return $response;
 }
 add_filter( 'woocommerce_rest_prepare_product_object', 'filter_woocommerce_rest_prepare_product_object', 10, 3 );
 
-
-
+/* ------------------------------------------------------------------------
+  API Endpoint to get all product filters for a specific category
+------------------------------------------------------------------------ */
 add_action('rest_api_init', function () {
 	$namespace = 'starward/';
  	register_rest_route( $namespace, '/products/filters/category/(?P<category_id>.*?)', array(
