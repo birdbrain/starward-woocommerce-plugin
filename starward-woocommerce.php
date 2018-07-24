@@ -111,12 +111,12 @@ function filter_woocommerce_rest_prepare_product_object( $response, $object, $re
           foreach($attribute_terms as $attribute_term) {
             if ($attribute_term->name == $option) {
               $new_options[] = (object) [
-                id => $attribute_term->term_id,
-                name => $attribute_term->name,
-                slug => $attribute_term->slug,
-                taxonomy => $attribute_term->taxonomy,
-                description => $attribute_term->description,
-                count => $attribute_term->count
+                'id' => $attribute_term->term_id,
+                'name' => $attribute_term->name,
+                'slug' => $attribute_term->slug,
+                'taxonomy' => $attribute_term->taxonomy,
+                'description' => $attribute_term->description,
+                'count' => $attribute_term->count
               ];
             }
           }
