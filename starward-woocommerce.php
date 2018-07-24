@@ -206,10 +206,11 @@ function get_product_category_attribute_terms($category_id) {
   // Initialize response array
   $category_attribute_terms = array();
   // For each product attribute
-  foreach($attribute_taxonomies as $attribute_taxonomy) {
+  foreach ($attribute_taxonomies as $attribute_taxonomy) {
     // Get all attribute options for each product in the category
     $options = array_map(function($product) use ($attribute_taxonomy) {
-      return get_the_terms($product->ID, 'pa_' . $attribute_taxonomy->attribute_name);
+      $terms = get_the_terms($product->ID, 'pa_' . $attribute_taxonomy->attribute_name);
+      return $terms ? $terms : [];
     }, $products);
     // Remove duplicate options
     $unique_options =
